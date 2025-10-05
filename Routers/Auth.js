@@ -8,54 +8,63 @@ const nodemailer = require("nodemailer")
 const validator = require("validator");
 
 
+
 router.post("/register", async (req, res) => {                                // http://localhost:5000/api/v3/register
-    const { name, email, username, password, cpassword } = req.body
-    const suser = await usermodel.findOne({ email })
-    if (!validator.isEmail(email) || !validator.isLength(email, { min: 3, max: 320 })) {
-        return res.status(400).send({
-            success: false,
-            message: "Invalid email"
-        });
-    }
-    if (!validator.isLength(password, { min: 6 })) {
-        return res.status(400).send({
-            success: false,
-            message: "password shoul be at least 6 digits"
-        });
-    }
+    try {
+        const { name, email, username, password, cpassword } = req.body;
+        const suser = await usermodel.findOne({ email });
+        if (!validator.isEmail(email) || !validator.isLength(email, { min: 3, max: 320 })) {
+            return res.status(400).send({
+                success: false,
+                message: "Invalid email"
+            });
+        }
+        if (!validator.isLength(password, { min: 6 })) {
+            return res.status(400).send({
+                success: false,
+                message: "password shoul be at least 6 digits"
+            });
+        }
 
-    if (suser) {
-        return res.status(400).send({
-            success: false,
-            message: "user already exist"
-        })
-    }
-    if (password === cpassword) {
-        const hashedpass = await bcrypt.hash(password, 10)
-        const user = new usermodel({ name, email, username, password: hashedpass, cpassword: hashedpass });
-        const userd = await user.save();
-        const uu = sendmail(userd.email);
-        return res.status(200).send({
-            success: true,
-            message: "done",
-            user: userd,
-            uu
-        })
-    }
-    else {
+        if (suser) {
+            return res.status(400).send({
+                success: false,
+                message: "user already exist"
+            });
+        }
+        if (password === cpassword) {
+            const hashedpass = await bcrypt.hash(password, 10);
+            const user = new usermodel({ name, email, username, password: hashedpass, cpassword: hashedpass });
+            const userd = await user.save();
+            const uu = sendmail(userd.email);
+            return res.status(200).send({
+                success: true,
+                message: "done",
+                user: userd,
+                uu
+            });
+        } else {
+            return res.status(500).send({
+                message: "password does not match"
+            });
+        }
+    } catch (error) {
+        console.error(error);
         return res.status(500).send({
-            message: "password does not match"
-        })
+            success: false,
+            message: "Error in registration",
+            error,
+        });
     }
-
 });
+
 
 
 router.post("/login", async (req, res) => {               // http://localhost:5000/api/v3/login
     try {
         const { password, email } = req.body;
         //validation
-        if (!password | !email) {
+        if (!password || !email) {
             return res.status(401).send({
                 success: false,
                 message: "Please provide  password",
@@ -93,36 +102,45 @@ router.post("/login", async (req, res) => {               // http://localhost:50
             token,
         });
     } catch (error) {
-        console.log(error);
+        console.error(error);
         return res.status(500).send({
             success: false,
-            message: "Error In Login Callcback",
+            message: "Error In Login Callback",
             error,
         });
     }
-}
-);
+});
+
 
 
 
 router.put("/fpass", async (req, res) => {
-    const { email, newpassword } = req.body
-    if (!email || !newpassword) {
-        return res.status(500).send({
-            message: " provide all fields"
-        })
+    try {
+        const { email, newpassword } = req.body;
+        if (!email || !newpassword) {
+            return res.status(500).send({
+                message: " provide all fields"
+            });
+        }
+        const user = await usermodel.findOne({ email });
+        if (!user) {
+            return res.send({ message: "user not found " });
+        }
+        const cpass = await bcrypt.hash(newpassword, 10);
+        await usermodel.findByIdAndUpdate(user._id, { password: cpass });
+        res.status(200).send({
+            message: "password change succesfully ",
+            success: true
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({
+            success: false,
+            message: "Error in password reset",
+            error,
+        });
     }
-    const user = await usermodel.findOne({ email });
-    if (!user) {
-        return res.send({ message: "user not found " })
-    }
-    const cpass = await bcrypt.hash(newpassword, 10);
-    await usermodel.findByIdAndUpdate(user._id, { password: cpass });
-    res.status(200).send({
-        message: "password change succesfully ",
-        success: true
-    })
-})
+});
 
 
 
@@ -138,18 +156,22 @@ const transporter = nodemailer.createTransport({
 });
 
 function sendmail(email) {
-    const mailoptions = {
-        from: "bytedevs2121@gmail.com",
-        to: email,
-        subject: "Welcome to bytestudy",
-        text: "Thank you for registred"
-    };
-    transporter.sendMail(mailoptions, (error, info) => {
-        if (error) {
-            console.error("fsdf")
-        } else {
-            console.log("email sent ", info.response)
-        }
-    })
+    try {
+        const mailoptions = {
+            from: "bytedevs2121@gmail.com",
+            to: email,
+            subject: "Welcome to bytestudy",
+            text: "Thank you for registred"
+        };
+        transporter.sendMail(mailoptions, (error, info) => {
+            if (error) {
+                console.error("Error sending email:", error);
+            } else {
+                console.log("email sent ", info.response);
+            }
+        });
+    } catch (error) {
+        console.error("Exception in sendmail:", error);
+    }
 }
 module.exports = router
