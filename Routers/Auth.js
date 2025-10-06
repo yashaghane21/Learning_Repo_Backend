@@ -160,7 +160,7 @@ function sendmail(email) {
         const mailoptions = {
             from: "bytedevs2121@gmail.com",
             to: email,
-            subject: "Welcome to bytestudy",
+            subject: "Welcome to LearningRepository",
             text: "Thank you for registred"
         };
         transporter.sendMail(mailoptions, (error, info) => {
